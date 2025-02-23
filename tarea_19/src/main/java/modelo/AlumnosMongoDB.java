@@ -10,7 +10,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Properties;
 import java.util.Scanner;
 
@@ -24,6 +26,8 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.FindOneAndUpdateOptions;
+import com.mongodb.client.model.ReturnDocument;
 
 import pool.PoolConexiones;
 
@@ -32,6 +36,7 @@ public class AlumnosMongoDB implements AlumnosDAO {
 	private final MongoClient mongoClient;
 	private final MongoDatabase database;
 	private final MongoCollection<Document> coleccionAlumnos;
+	private final MongoCollection<Document> coleccionCounters;
 	private final Scanner sc = new Scanner(System.in);
 
 	private static final Logger loggerGeneral = LogManager.getRootLogger();
@@ -48,14 +53,19 @@ public class AlumnosMongoDB implements AlumnosDAO {
 
 			String uri = properties.getProperty("mongo.uri");
 			String nombreBD = properties.getProperty("mongo.database");
-			String nombreColeccion = properties.getProperty("mongo.collection");
+			String nombreColeccionAlumnos = properties.getProperty("mongo.collection");
+			String nombreColeccionCounters = properties.getProperty("mongo.collectionCounters");
 
 			// Conectar a MongoDB
 			mongoClient = MongoClients.create(uri);
 			database = mongoClient.getDatabase(nombreBD);
-			coleccionAlumnos = database.getCollection(nombreColeccion);
+			coleccionAlumnos = database.getCollection(nombreColeccionAlumnos);
+			coleccionCounters = database.getCollection(nombreColeccionCounters);
 
 			System.out.println("✅ Conectado a MongoDB correctamente.");
+
+			// Sincronizar contador tras la conexión
+			sincronizarContadorNia();
 		} catch (IOException e) {
 			e.printStackTrace();
 			throw new RuntimeException("Error al cargar el archivo de configuración.");
@@ -73,52 +83,160 @@ public class AlumnosMongoDB implements AlumnosDAO {
 	}
 
 	/**
-	 * Inserta un nuevo alumno en la colección.
+	 * Sincroniza la colección 'counters' con el NIA más alto en la colección de
+	 * alumnos.
 	 */
-	@Override
-	public boolean insertarAlumno(Alumno alumno) {
-	    try {
-	        // Formato para la fecha
-	        SimpleDateFormat formatoFecha = new SimpleDateFormat("yyyy-MM-dd");
-	        String fechaNacimientoStr = formatoFecha.format(alumno.getFechaNacimiento());
+	public void sincronizarContadorNia() {
+	    // Obtener el NIA máximo actual en la colección de alumnos
+	    Document niaMaximo = coleccionAlumnos.find().sort(new Document("nia", -1)).first();
 
-	        // Crear el documento para insertar
-	        Document documento = new Document("nia", alumno.getNia())
-	                .append("nombre", alumno.getNombre())
-	                .append("apellidos", alumno.getApellidos())
-	                .append("genero", String.valueOf(alumno.getGenero()))
-	                .append("fechaNacimiento", fechaNacimientoStr) // Convertir la fecha a string
-	                .append("ciclo", alumno.getCiclo())
-	                .append("curso", alumno.getCurso())
-	                .append("grupo", alumno.getGrupo().getNombreGrupo());
+	    int siguienteNia = (niaMaximo != null) ? niaMaximo.getInteger("nia") : 1000;
 
-	        // Insertar el documento en la colección
-	        coleccionAlumnos.insertOne(documento);
-	        System.out.println("✅ Alumno insertado correctamente en MongoDB.");
-	        return true;
-	    } catch (Exception e) {
-	        loggerExcepciones.error("❌ Error al insertar el alumno: " + e.getMessage());
-	        return false;
-	    }
+	    // Actualizar o insertar el valor en la colección 'counters'
+	    Document filtro = new Document("_id", "alumno_nia");
+	    Document actualizacion = new Document("$set", new Document("seq", siguienteNia));
+	    coleccionCounters.updateOne(filtro, actualizacion, new com.mongodb.client.model.UpdateOptions().upsert(true));
+
+	    loggerGeneral.info("Contador de NIA sincronizado. El siguiente NIA será: " + (siguienteNia + 1));
 	}
 
 
 	/**
-	 * Muestra todos los alumnos de la colección.
+	 * Obtiene el siguiente valor para el NIA (autoincremental)
+	 */
+	public int obtenerSiguienteNia() {
+		Document filtro = new Document("_id", "alumno_nia");
+		Document actualizacion = new Document("$inc", new Document("seq", 1));
+		Document resultado = coleccionCounters.findOneAndUpdate(filtro, actualizacion,
+				new FindOneAndUpdateOptions().upsert(true).returnDocument(ReturnDocument.AFTER));
+
+		if (resultado != null && resultado.containsKey("seq")) {
+			return resultado.getInteger("seq");
+		} else {
+			loggerGeneral.error("No se pudo obtener el valor del NIA.");
+			return 1000; // Valor inicial por defecto si hay un fallo
+		}
+	}
+
+	/**
+	 * Inserta un nuevo alumno en la colección de MongoDB. El campo 'nia' se
+	 * autoincrementa utilizando la colección 'counters'.
+	 * 
+	 * @param alumno El objeto Alumno que se desea insertar.
+	 * @return true si la inserción fue exitosa, false en caso contrario.
 	 */
 	@Override
-	public boolean mostrarTodosLosAlumnos(boolean mostrarTodaLaInformacion) {
+	public boolean insertarAlumno(Alumno alumno) {
 		try {
-			FindIterable<Document> documentos = coleccionAlumnos.find();
-			for (Document doc : documentos) {
-				System.out.println(doc.toJson());
-			}
+			int nuevoNia = obtenerSiguienteNia();
+			alumno.setNia(nuevoNia);
+
+			// Formatear la fecha en el formato deseado (dd-MM-aaaa)
+			SimpleDateFormat sdf = new SimpleDateFormat("dd-MM-yyyy");
+			String fechaFormateada = sdf.format(alumno.getFechaNacimiento());
+
+			// Convertir el objeto Alumno a un documento BSON para la inserción
+			Document alumnoDoc = new Document().append("nia", alumno.getNia()).append("nombre", alumno.getNombre())
+					.append("apellidos", alumno.getApellidos()).append("genero", String.valueOf(alumno.getGenero()))
+					.append("fechaNacimiento", fechaFormateada).append("ciclo", alumno.getCiclo())
+					.append("curso", alumno.getCurso()).append("grupo", alumno.getGrupo().getNombreGrupo());
+
+			coleccionAlumnos.insertOne(alumnoDoc);
+			loggerGeneral.info("Alumno insertado correctamente con NIA: " + nuevoNia);
 			return true;
+
 		} catch (Exception e) {
-			 loggerExcepciones.error("❌ Error al mostrar los alumnos: " + e.getMessage());
+			loggerExcepciones.error("Error al insertar el alumno: " + e.getMessage(), e);
 			return false;
 		}
 	}
+
+	/**
+	 * Muestra todos los alumnos de la colección.
+	 *
+	 * @param mostrarTodaLaInformacion Indica si se debe mostrar toda la información (true)
+	 *                                 o solo NIA y nombre (false).
+	 * @return true si se muestran los alumnos correctamente, false en caso contrario.
+	 */
+	@Override
+	public boolean mostrarTodosLosAlumnos(boolean mostrarTodaLaInformacion) {
+	    try {
+	        FindIterable<Document> documentos = coleccionAlumnos.find();
+
+	        if (documentos.first() == null) {
+	            System.out.println("No hay alumnos registrados.");
+	            return false;
+	        }
+
+	        List<Integer> listaNias = new ArrayList<>();
+
+	        if (mostrarTodaLaInformacion) {
+	            System.out.println("Lista completa de alumnos registrados:");
+	        } else {
+	            System.out.println("Lista de alumnos (NIA y Nombre):");
+	        }
+
+	        for (Document doc : documentos) {
+	            int nia = doc.getInteger("nia");
+	            String nombre = doc.getString("nombre");
+
+	            if (mostrarTodaLaInformacion) {
+	                String apellidos = doc.getString("apellidos");
+	                String genero = doc.getString("genero");
+	                String fechaNacimiento = doc.getString("fechaNacimiento");
+	                String ciclo = doc.getString("ciclo");
+	                String curso = doc.getString("curso");
+	                String grupo = doc.getString("grupo");
+
+	                System.out.printf("""
+	                        NIA: %d
+	                        Nombre: %s
+	                        Apellidos: %s
+	                        Género: %s
+	                        Fecha de nacimiento: %s
+	                        Ciclo: %s
+	                        Curso: %s
+	                        Grupo: %s
+	                        -------------------------
+	                        """, nia, nombre, apellidos, genero, fechaNacimiento, ciclo, curso,
+	                        (grupo != null ? grupo : "Sin grupo"));
+	            } else {
+	                // Mostrar solo NIA y nombre
+	                System.out.printf("NIA: %d, Nombre: %s%n", nia, nombre);
+	                listaNias.add(nia);
+	            }
+	        }
+
+	        // Si solo se mostró NIA y nombre, permitir al usuario seleccionar un NIA
+	        if (!mostrarTodaLaInformacion) {
+	            System.out.println("\nIntroduce el NIA del alumno que deseas visualizar (o 0 para salir):");
+	            while (true) {
+	                try {
+	                    int niaSeleccionado = Integer.parseInt(sc.nextLine().trim());
+
+	                    if (niaSeleccionado == 0) {
+	                        System.out.println("Saliendo sin seleccionar un alumno.");
+	                        return true;
+	                    }
+
+	                    if (listaNias.contains(niaSeleccionado)) {
+	                        return mostrarAlumnoPorNIA(niaSeleccionado);
+	                    } else {
+	                        System.out.println("El NIA seleccionado no está en la lista. Inténtalo de nuevo.");
+	                    }
+	                } catch (NumberFormatException e) {
+	                    System.out.println("El NIA debe ser un número válido. Inténtalo de nuevo:");
+	                }
+	            }
+	        }
+
+	        return true;
+	    } catch (Exception e) {
+	        loggerExcepciones.error("❌ Error al mostrar los alumnos: " + e.getMessage());
+	        return false;
+	    }
+	}
+
 
 	/**
 	 * Elimina un alumno por su NIA.
@@ -131,7 +249,7 @@ public class AlumnosMongoDB implements AlumnosDAO {
 			System.out.println("✅ Alumno con NIA " + nia + " eliminado correctamente.");
 			return true;
 		} catch (Exception e) {
-			 loggerExcepciones.error("❌ Error al eliminar el alumno: " + e.getMessage());
+			loggerExcepciones.error("❌ Error al eliminar el alumno: " + e.getMessage());
 			return false;
 		}
 	}
@@ -222,7 +340,7 @@ public class AlumnosMongoDB implements AlumnosDAO {
 
 		return fecha;
 	}
-	
+
 	private String solicitarNombreGrupo() {
 		String nombreGrupo;
 		do {
@@ -235,7 +353,7 @@ public class AlumnosMongoDB implements AlumnosDAO {
 		} while (!validarNombreGrupo(nombreGrupo));
 		return nombreGrupo;
 	}
-	
+
 	/**
 	 * Valida si un nombre de grupo existe en la base de datos.
 	 * 
@@ -258,7 +376,6 @@ public class AlumnosMongoDB implements AlumnosDAO {
 			return false;
 		}
 	}
-
 
 	@Override
 	public boolean modificarNombreAlumnoPorNIA(int nia, String nuevoNombre) {
