@@ -2,9 +2,11 @@ package modelo;
 
 import static com.mongodb.client.model.Filters.eq;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.sql.Connection;
@@ -298,6 +300,7 @@ public class AlumnosMongoDB implements AlumnosDAO {
 	 * @return true si se muestran los alumnos correctamente, false en caso
 	 *         contrario.
 	 */
+
 	@Override
 	public boolean mostrarTodosLosAlumnos(boolean mostrarTodaLaInformacion) {
 		try {
@@ -420,28 +423,27 @@ public class AlumnosMongoDB implements AlumnosDAO {
 
 			// Escribir los datos de los alumnos en el fichero
 			for (Document doc : alumnos) {
-			    int nia = doc.getInteger("nia", 0);
-			    String nombre = doc.getString("nombre");
-			    String apellidos = doc.getString("apellidos");
-			    String genero = doc.getString("genero");
-			    String fechaNacimiento = doc.getString("fechaNacimiento");
-			    String ciclo = doc.getString("ciclo");
-			    String curso = doc.getString("curso");
+				int nia = doc.getInteger("nia", 0);
+				String nombre = doc.getString("nombre");
+				String apellidos = doc.getString("apellidos");
+				String genero = doc.getString("genero");
+				String fechaNacimiento = doc.getString("fechaNacimiento");
+				String ciclo = doc.getString("ciclo");
+				String curso = doc.getString("curso");
 
-			    Object grupoObj = doc.get("grupo");
-			    String nombreGrupo = "Sin grupo";
+				Object grupoObj = doc.get("grupo");
+				String nombreGrupo = "Sin grupo";
 
-			    if (grupoObj instanceof Document) {
-			        nombreGrupo = ((Document) grupoObj).getString("nombreGrupo");
-			    } else if (grupoObj instanceof String) {
-			        nombreGrupo = (String) grupoObj;
-			    }
+				if (grupoObj instanceof Document) {
+					nombreGrupo = ((Document) grupoObj).getString("nombreGrupo");
+				} else if (grupoObj instanceof String) {
+					nombreGrupo = (String) grupoObj;
+				}
 
-			    writer.write(String.format("%d,%s,%s,%s,%s,%s,%s,%s",
-			            nia, nombre, apellidos, genero, fechaNacimiento, ciclo, curso, nombreGrupo));
-			    writer.newLine();
+				writer.write(String.format("%d,%s,%s,%s,%s,%s,%s,%s", nia, nombre, apellidos, genero, fechaNacimiento,
+						ciclo, curso, nombreGrupo));
+				writer.newLine();
 			}
-
 
 			System.out.println("Datos de los alumnos guardados correctamente en el fichero 'alumnos.txt'.");
 			loggerGeneral.info("Los datos de los alumnos se guardaron correctamente en el fichero '{}'.",
@@ -461,8 +463,69 @@ public class AlumnosMongoDB implements AlumnosDAO {
 
 	@Override
 	public boolean leerAlumnosDeFicheroTexto() {
-		// TODO Auto-generated method stub
-		return false;
+		String fichero = "alumnos.txt";
+		int lineasInsertadas = 0;
+
+		try (BufferedReader br = new BufferedReader(new FileReader(fichero))) {
+			String linea;
+
+			// Ignorar la primera línea (cabecera)
+			br.readLine();
+
+			while ((linea = br.readLine()) != null) {
+				loggerGeneral.info("Leyendo línea: {}", linea);
+
+				// Separar los campos por coma
+				String[] datos = linea.split(",");
+
+				// Verificar que la línea tenga 8 campos
+				if (datos.length == 8) {
+					try {
+						String nombre = datos[1];
+						String apellidos = datos[2];
+						char genero = datos[3].charAt(0);
+						String fechaNacimiento = datos[4]; // Fecha se mantiene como String
+						String ciclo = datos[5];
+						String curso = datos[6];
+						String grupo = datos[7]; // El grupo como un String
+
+						// Crear el documento de alumno para MongoDB
+						Document alumnoDoc = new Document().append("nia", Integer.parseInt(datos[0])) // Asumimos que el
+																										// NIA está en
+																										// la primera
+																										// posición
+								.append("nombre", nombre).append("apellidos", apellidos).append("genero", genero)
+								.append("fechaNacimiento", fechaNacimiento) // Guardamos la fecha como String
+								.append("ciclo", ciclo).append("curso", curso).append("grupo", grupo); // Aquí se guarda
+																										// el nombre del
+																										// grupo como
+																										// String
+
+						// Insertar el alumno en la colección MongoDB
+						MongoCollection<Document> alumnosCollection = mongoClient.getDatabase("Alumnos24_Mongo")
+								.getCollection("alumnos");
+						alumnosCollection.insertOne(alumnoDoc);
+						lineasInsertadas++;
+						loggerGeneral.info("Alumno insertado: {} {}", nombre, apellidos);
+					} catch (Exception e) {
+						loggerExcepciones.error("Error al procesar la línea: {}", linea, e);
+					}
+				} else {
+					loggerGeneral.warn("Línea inválida (número de campos incorrecto): {}", linea);
+				}
+			}
+
+			if (lineasInsertadas > 0) {
+				loggerGeneral.info("Alumnos leídos e insertados correctamente.");
+				return true;
+			} else {
+				loggerGeneral.warn("No se insertaron alumnos.");
+				return false;
+			}
+		} catch (IOException e) {
+			loggerExcepciones.error("Error al leer el archivo '{}': {}", fichero, e.getMessage(), e);
+			return false;
+		}
 	}
 
 	// 6. Modificar el nombre de un alumno por su NIA.
