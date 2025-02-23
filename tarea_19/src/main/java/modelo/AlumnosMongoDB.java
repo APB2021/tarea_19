@@ -289,10 +289,29 @@ public class AlumnosMongoDB implements AlumnosDAO {
 
 	// 2. Insertar nuevo grupo.
 
+	/*
+	 * @Override public boolean insertarGrupo(Grupo grupo) { // TODO Auto-generated
+	 * method stub return false; }
+	 */
 	@Override
 	public boolean insertarGrupo(Grupo grupo) {
-		// TODO Auto-generated method stub
-		return false;
+		// Obtener la colección de grupos en la base de datos
+		MongoCollection<Document> gruposCollection = mongoClient.getDatabase("Alumnos24_Mongo").getCollection("grupos");
+
+		// Crear un documento que representa al grupo
+		Document grupoDoc = new Document().append("numeroGrupo", grupo.getNumeroGrupo()).append("nombreGrupo",
+				grupo.getNombreGrupo());
+
+		try {
+			// Insertar el documento en la colección
+			gruposCollection.insertOne(grupoDoc);
+			System.out.println("Grupo insertado correctamente: " + grupo.getNombreGrupo());
+			return true;
+		} catch (Exception e) {
+			// Manejar errores de inserción
+			loggerExcepciones.error("Error al insertar el grupo: ", e);
+			return false;
+		}
 	}
 
 	// 3. Mostrar todos los alumnos.
@@ -682,19 +701,108 @@ public class AlumnosMongoDB implements AlumnosDAO {
 
 	// 11. Mostrar todos los alumnos del grupo elegido.
 
-	@Override
+	
+	/*
 	public void mostrarAlumnosPorGrupo() {
 		// TODO Auto-generated method stub
-
 	}
+	*/
+	
+	@Override
+	public void mostrarAlumnosPorGrupo() {
+	    // Mostrar los grupos disponibles
+	    if (!mostrarTodosLosGrupos()) {
+	        System.out.println("❌ No hay grupos disponibles para consultar.");
+	        return;
+	    }
+
+	    // Solicitar al usuario que elija un grupo
+	    System.out.print("\nIntroduce el nombre del grupo que deseas consultar: ");
+	    String nombreGrupo = sc.nextLine().trim().toUpperCase();
+
+	    // Validar que el grupo exista
+	    List<String> gruposDisponibles = obtenerGruposDisponibles();
+	    if (!gruposDisponibles.contains(nombreGrupo)) {
+	        System.out.println("❌ El grupo \"" + nombreGrupo + "\" no existe.");
+	        return;
+	    }
+
+	    try {
+	        // Filtro para buscar alumnos por el grupo indicado
+	        Bson filtro = Filters.eq("grupo", nombreGrupo);
+	        FindIterable<Document> alumnos = coleccionAlumnos.find(filtro);
+
+	        boolean hayAlumnos = false;
+	        System.out.println("\n--- Alumnos del grupo \"" + nombreGrupo + "\" ---");
+	        for (Document alumno : alumnos) {
+	            hayAlumnos = true;
+	            System.out.println("NIA: " + alumno.getInteger("nia"));
+	            System.out.println("Nombre: " + alumno.getString("nombre"));
+	            System.out.println("Apellidos: " + alumno.getString("apellidos"));
+	            System.out.println("Género: " + alumno.getString("genero"));
+	            System.out.println("Fecha de Nacimiento: " + alumno.getString("fechaNacimiento"));
+	            System.out.println("Ciclo: " + alumno.getString("ciclo"));
+	            System.out.println("Curso: " + alumno.getString("curso"));
+	            System.out.println("-----------------------------");
+	        }
+
+	        if (!hayAlumnos) {
+	            System.out.println("⚠️ No hay alumnos registrados en el grupo \"" + nombreGrupo + "\".");
+	        }
+	    } catch (MongoException e) {
+	        loggerExcepciones.error("Error al mostrar alumnos por grupo: " + e.getMessage(), e);
+	        System.err.println("❌ Se produjo un error al consultar los alumnos del grupo.");
+	    }
+	}
+
 
 	// 12. Mostrar todos los datos de un alumno por su NIA.
 
 	@Override
 	public boolean mostrarAlumnoPorNIA(int nia) {
-		// TODO Auto-generated method stub
-		return false;
+	    try {
+	        // Buscar el alumno por NIA
+	        Document alumno = coleccionAlumnos.find(eq("nia", nia)).first();
+
+	        if (alumno == null) {
+	            System.out.println("❌ No se encontró un alumno con el NIA proporcionado.");
+	            loggerGeneral.warn("No se encontró un alumno con NIA {}.", nia);
+	            return false;
+	        }
+
+	        // Mostrar los datos del alumno
+	        System.out.printf("""
+	                -------------------------
+	                NIA: %d
+	                Nombre: %s
+	                Apellidos: %s
+	                Género: %s
+	                Fecha de nacimiento: %s
+	                Ciclo: %s
+	                Curso: %s
+	                Grupo: %s
+	                -------------------------
+	                """,
+	                alumno.getInteger("nia"),
+	                alumno.getString("nombre"),
+	                alumno.getString("apellidos"),
+	                alumno.getString("genero"),
+	                alumno.getString("fechaNacimiento"),
+	                alumno.getString("ciclo"),
+	                alumno.getString("curso"),
+	                alumno.getString("grupo") != null ? alumno.getString("grupo") : "Sin grupo"
+	        );
+
+	        loggerGeneral.info("✅ Información del alumno con NIA {} mostrada correctamente.", nia);
+	        return true;
+
+	    } catch (MongoException e) {
+	        loggerExcepciones.error("❌ Error al consultar información del alumno con NIA {}: {}", nia, e.getMessage(), e);
+	        System.out.println("Se produjo un error al mostrar la información del alumno. Revisa los logs.");
+	        return false;
+	    }
 	}
+
 
 	// 13. Cambiar de grupo al alumno que elija el usuario.
 
@@ -711,4 +819,5 @@ public class AlumnosMongoDB implements AlumnosDAO {
 		// TODO Auto-generated method stub
 		return false;
 	}
+
 }
