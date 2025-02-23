@@ -27,6 +27,7 @@ import org.bson.Document;
 import org.bson.conversions.Bson;
 
 import com.mongodb.MongoException;
+import com.mongodb.client.DistinctIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
@@ -37,6 +38,7 @@ import com.mongodb.client.model.FindOneAndUpdateOptions;
 import com.mongodb.client.model.ReturnDocument;
 import com.mongodb.client.model.Sorts;
 import com.mongodb.client.model.Updates;
+import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 
 import pool.PoolConexiones;
@@ -581,18 +583,85 @@ public class AlumnosMongoDB implements AlumnosDAO {
 		}
 	}
 
-	@Override
-	public boolean mostrarTodosLosGrupos() {
-		// TODO Auto-generated method stub
-		return false;
-	}
-
 	// 8. Eliminar los alumnos del grupo indicado.
 
 	@Override
 	public boolean eliminarAlumnosPorGrupo(String grupo) {
-		// TODO Auto-generated method stub
-		return false;
+		try {
+			// Acceder a la colección de alumnos en la base de datos MongoDB
+			MongoCollection<Document> alumnosCollection = mongoClient.getDatabase("Alumnos24_Mongo")
+					.getCollection("alumnos");
+
+			// Crear el filtro para buscar los alumnos del grupo especificado
+			Bson filtro = Filters.eq("grupo", grupo);
+
+			// Realizar la eliminación de los alumnos que coincidan con el filtro
+			DeleteResult resultado = alumnosCollection.deleteMany(filtro);
+
+			// Verificar si se eliminaron documentos
+			if (resultado.getDeletedCount() > 0) {
+				loggerGeneral.info("Se eliminaron {} alumnos del grupo {}", resultado.getDeletedCount(), grupo);
+				return true;
+			} else {
+				loggerGeneral.warn("No se encontraron alumnos en el grupo {}", grupo);
+				return false;
+			}
+		} catch (Exception e) {
+			loggerExcepciones.error("Error al eliminar los alumnos del grupo {}: {}", grupo, e.getMessage(), e);
+			return false;
+		}
+	}
+
+	public List<String> obtenerGruposDisponibles() {
+		List<String> grupos = new ArrayList<>();
+
+		try {
+			// Acceder a la colección de alumnos en la base de datos MongoDB
+			MongoCollection<Document> alumnosCollection = mongoClient.getDatabase("Alumnos24_Mongo")
+					.getCollection("alumnos");
+
+			// Obtener los grupos únicos de los alumnos
+			DistinctIterable<String> gruposDistinct = alumnosCollection.distinct("grupo", String.class);
+
+			// Agregar los grupos a la lista
+			for (String grupo : gruposDistinct) {
+				grupos.add(grupo);
+			}
+
+			// Si se encuentran grupos, devolver la lista
+			if (!grupos.isEmpty()) {
+				loggerGeneral.info("Grupos disponibles: {}", grupos);
+			} else {
+				loggerGeneral.warn("No hay grupos disponibles.");
+			}
+
+		} catch (Exception e) {
+			loggerExcepciones.error("Error al obtener los grupos disponibles: {}", e.getMessage(), e);
+		}
+
+		return grupos;
+	}
+
+	@Override
+	public boolean mostrarTodosLosGrupos() {
+		// Obtener los grupos disponibles
+		List<String> gruposDisponibles = obtenerGruposDisponibles();
+
+		// Si hay grupos disponibles, mostrar la lista
+		if (!gruposDisponibles.isEmpty()) {
+			System.out.println("Grupos disponibles:");
+			for (int i = 0; i < gruposDisponibles.size(); i++) {
+				System.out.println((i + 1) + ". " + gruposDisponibles.get(i));
+			}
+
+			// Retornar true para indicar que se han mostrado los grupos correctamente
+			return true;
+		} else {
+			System.out.println("No hay grupos disponibles.");
+
+			// Retornar false si no hay grupos disponibles
+			return false;
+		}
 	}
 
 	// 9. Guardar grupos y alumnos en un archivo XML.
