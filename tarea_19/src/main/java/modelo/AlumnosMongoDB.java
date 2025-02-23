@@ -32,9 +32,12 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.FindOneAndUpdateOptions;
 import com.mongodb.client.model.ReturnDocument;
 import com.mongodb.client.model.Sorts;
+import com.mongodb.client.model.Updates;
+import com.mongodb.client.result.UpdateResult;
 
 import pool.PoolConexiones;
 
@@ -532,8 +535,32 @@ public class AlumnosMongoDB implements AlumnosDAO {
 
 	@Override
 	public boolean modificarNombreAlumnoPorNIA(int nia, String nuevoNombre) {
-		// TODO Auto-generated method stub
-		return false;
+		try {
+			// Buscar el alumno por su NIA
+			MongoCollection<Document> alumnosCollection = mongoClient.getDatabase("Alumnos24_Mongo")
+					.getCollection("alumnos");
+
+			// Crear el filtro para buscar el alumno con el NIA dado
+			Bson filtro = Filters.eq("nia", nia);
+
+			// Crear el objeto de actualización con el nuevo nombre
+			Bson actualizacion = Updates.set("nombre", nuevoNombre);
+
+			// Realizar la actualización
+			UpdateResult resultado = alumnosCollection.updateOne(filtro, actualizacion);
+
+			// Verificar si la actualización fue exitosa
+			if (resultado.getMatchedCount() > 0) {
+				loggerGeneral.info("Nombre del alumno con NIA {} modificado a {}", nia, nuevoNombre);
+				return true;
+			} else {
+				loggerGeneral.warn("No se encontró un alumno con el NIA {}", nia);
+				return false;
+			}
+		} catch (Exception e) {
+			loggerExcepciones.error("Error al modificar el nombre del alumno con NIA {}: {}", nia, e.getMessage(), e);
+			return false;
+		}
 	}
 
 	// 7. Eliminar un alumno a partir de su NIA.
