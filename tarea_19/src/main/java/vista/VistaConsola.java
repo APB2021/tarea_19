@@ -7,6 +7,7 @@ import java.util.Scanner;
 import modelo.Alumno;
 import modelo.AlumnosDAO;
 import modelo.AlumnosHibernate;
+import modelo.AlumnosMongoDB;
 import modelo.BaseDatos;
 import modelo.Grupo;
 
@@ -15,6 +16,12 @@ public class VistaConsola implements IVista {
 	private final Scanner sc = new Scanner(System.in);
 
 	private AlumnosDAO modelo;
+	
+	/**
+	 * Permite al usuario seleccionar el modelo de base de datos con el que desea trabajar.
+	 * 
+	 * @return el modelo AlumnosDAO correspondiente (MySQL, Oracle o MongoDB).
+	 */
 
 	public AlumnosDAO elegirModelo() {
 		seleccionarBaseDatos();
@@ -26,6 +33,7 @@ public class VistaConsola implements IVista {
 				---- Selección de Base de Datos ----
 				1. MySQL (Hibernate)
 				2. Oracle (Hibernate)
+				3. MongoDB
 				-----------------------------------
 				""");
 
@@ -46,6 +54,11 @@ public class VistaConsola implements IVista {
 					System.out.println("✅ Conectando a Oracle...");
 					AlumnosHibernate.setBaseDatos(BaseDatos.ORACLE);
 					modelo = new AlumnosHibernate();
+				}
+				case 3 -> {
+					System.out.println("✅ Conectando a MongoDB...");
+					modelo = new AlumnosMongoDB();
+					System.out.println("🌿 Base de datos activa: MongoDB.");
 				}
 				default -> System.out.println("❌ Opción no válida. Intenta de nuevo.");
 				}
