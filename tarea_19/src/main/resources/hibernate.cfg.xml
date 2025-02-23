@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE hibernate-configuration PUBLIC "-//Hibernate/Hibernate Configuration DTD 3.0//EN" "http://www.hibernate.org/dtd/hibernate-configuration-3.0.dtd">
+
+<hibernate-configuration>
+	<session-factory>
+		<!-- Configuración de la base de datos -->
+		<property name="hibernate.connection.driver_class">
+			com.mysql.cj.jdbc.Driver</property>
+		<property name="hibernate.connection.url">
+			jdbc:mysql://localhost:3306/Alumnos24_Hibernate?serverTimezone=UTC&amp;useSSL=false
+		</property>
+		<property name="hibernate.connection.username">root</property>
+		<property name="hibernate.connection.password">root</property>
+
+		<!-- Dialecto de Hibernate desde Hibernate 6 -->
+		<!-- Hibernate está diseñado para gestionar automáticamente el dialecto
+		sin configuraciones adicionales. -->
+		<!-- <property
+		name="hibernate.dialect">org.hibernate.dialect.MySQLDialect</property> -->
+
+		<!-- Configuración del pool de conexiones -->
+		<property name="hibernate.connection.pool_size">10</property>
+
+		<!-- Configuración para usar HikariCP -->
+		<property name="hibernate.hikari.minimumIdle">2</property>
+		<property name="hibernate.hikari.maximumPoolSize">10</property>
+		<property name="hibernate.hikari.idleTimeout">30000</property>
+		<property name="hibernate.hikari.connectionTimeout">20000</property>
+		<property name="hibernate.hikari.maxLifetime">1800000</property>
+
+		<!-- Manejo de sesiones -->
+		<property name="hibernate.current_session_context_class">thread</property>
+
+		<!-- Mostrar las consultas SQL en consola -->
+		<property name="hibernate.show_sql">false</property>
+		<property name="hibernate.format_sql">false</property>
+		<!-- <property name="hibernate.show_sql">true</property> -->
+		<!-- <property name="hibernate.format_sql">true</property> -->
+
+		<!-- Actualización de la BD -->
+		<!-- OPCIONES POSIBLES: -->
+		<!-- update: Actualiza la base de datos según las entidades.  -->
+		<property name="hibernate.hbm2ddl.auto">update</property>
+		<!-- none: No realiza cambios en la base de datos. -->
+		<!-- create: Crea la base de datos desde cero (borra los datos
+		existentes). -->
+		<!-- validate: Verifica la estructura, pero no modifica la base de
+		datos. -->
+
+		<!-- Escaneo automático de entidades en el paquete 'modelo' -->
+		<!-- <property name="hibernate.archive.autodetection">class</property> -->
+
+		<mapping class="modelo.Alumno" />
+		<mapping class="modelo.Grupo" />
+
+	</session-factory>
+</hibernate-configuration>

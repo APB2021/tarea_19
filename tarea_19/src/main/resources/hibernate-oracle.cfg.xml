@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE hibernate-configuration PUBLIC "-//Hibernate/Hibernate Configuration DTD 3.0//EN" "http://www.hibernate.org/dtd/hibernate-configuration-3.0.dtd">
+
+<hibernate-configuration>
+	<session-factory>
+
+		<!-- Configuración para la base de datos Oracle -->
+		<property name="hibernate.connection.driver_class">
+			oracle.jdbc.OracleDriver</property>
+		<!-- <property
+		name="hibernate.connection.url">jdbc:oracle:thin:@localhost:1521/XEPDB1</property> -->
+		<property name="hibernate.connection.url">
+			jdbc:oracle:thin:@192.168.1.69:1521/XEPDB1</property>
+		<property name="hibernate.connection.username">tarea18</property>
+		<property name="hibernate.connection.password">tarea18pwd</property>
+		
+		<!-- Configuración del pool de conexiones (HikariCP) -->
+		<property name="hibernate.hikari.minimumIdle">2</property>
+		<property name="hibernate.hikari.maximumPoolSize">10</property>
+		<property name="hibernate.hikari.idleTimeout">30000</property>
+		<property name="hibernate.hikari.connectionTimeout">20000</property>
+		<property name="hibernate.hikari.maxLifetime">1800000</property>
+
+		<!-- Manejo de sesiones -->
+		<property name="hibernate.current_session_context_class">thread</property>
+
+		<!-- Mostrar las consultas SQL en consola -->
+		<property name="hibernate.show_sql">false</property>
+		<property name="hibernate.format_sql">false</property>
+
+		<!-- Actualización de la base de datos -->
+		<property name="hibernate.hbm2ddl.auto">update</property>
+
+		<!-- Mapear las entidades -->
+		<mapping class="modelo.Alumno" />
+		<mapping class="modelo.Grupo" />
+
+	</session-factory>
+</hibernate-configuration>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+	<Appenders>
+		<!-- Consola -->
+		<Console name="Console" target="SYSTEM_OUT">
+			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%t] %-5p %c - %m%n" />
+		</Console>
+
+		<!-- Archivo principal para logs generales -->
+		<File name="GeneralFile" fileName="logs/tarea_19.log" append="true">
+			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%t] %-5p %c - %m%n" />
+		</File>
+
+		<!-- Archivo para logs de excepciones -->
+		<File name="ExceptionFile" fileName="logs/exceptions.log" append="true">
+			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%t] %-5p %c - %m%n" />
+		</File>
+	</Appenders>
+
+	<Loggers>
+		<!-- Logger raíz para logs generales -->
+		<Root level="info">
+			<AppenderRef ref="Console" />
+			<AppenderRef ref="GeneralFile" />
+		</Root>
+
+		<!-- Logger dedicado para logs de excepciones -->
+		<Logger name="exceptions" level="error" additivity="false">
+			<AppenderRef ref="ExceptionFile" />
+		</Logger>
+
+		<!-- Reducir el nivel de logs de Hibernate a WARN -->
+		<Logger name="org.hibernate" level="WARN" additivity="false">
+			<AppenderRef ref="Console" />
+		</Logger>
+
+	</Loggers>
+</Configuration>
