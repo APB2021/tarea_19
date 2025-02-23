@@ -564,6 +564,7 @@ public class AlumnosBD implements AlumnosDAO {
 	 * @return true si el alumno fue eliminado correctamente, false en caso
 	 *         contrario.
 	 */
+	
 	@Override
 	public boolean eliminarAlumnoPorNIA(int nia) {
 		String sql = "DELETE FROM alumnos WHERE nia = ?";
